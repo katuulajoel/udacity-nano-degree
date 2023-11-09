@@ -1,0 +1,16 @@
+.aws/
+.cache/
+.config/
+.gitconfig/
+.ipynb_checkpoints//
+.ipynb_checkpoints/
+..ipython//
+.ipython//
+.autovizwidget/
+.jupyter/
+.local/
+.sagemaker-jumpstart-tasks-status.json
+.yarnrc
+.ipython/
+.gitconfig
+local_file.csv
