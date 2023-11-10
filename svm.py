@@ -3,8 +3,9 @@ import os
 import joblib
 import pandas as pd
 from sklearn.svm import SVC
-from sklearn.model_selection import RandomizedSearchCV, RepeatedStratifiedKFold
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from sklearn.metrics import classification_report
+
 
 if __name__ == '__main__':
     # Parse argument variables passed via the CreateTrainingJob request
@@ -22,25 +23,26 @@ if __name__ == '__main__':
     y_train = pd.read_csv(os.path.join(args.train, 'y_train_resampled.csv')).values.ravel()
     X_test = pd.read_csv(os.path.join(args.test, 'X_test_svm.csv'))
     y_test = pd.read_csv(os.path.join(args.test, 'y_test_svm.csv')).values.ravel()
-
+    
     # Define the parameter distribution for RandomizedSearchCV
     param_dist = {
-        'C': [0.1, 1, 10],
-        'kernel': ['linear', 'rbf', 'poly', 'sigmoid'],
+        'C': np.logspace(-3, 2, 6),  # Exploring a smaller, logarithmically spaced range
+        'kernel': ['linear', 'rbf'],  # Limiting the number of kernels to try
+        # Consider removing 'poly' and 'sigmoid' or add them if computational resources allow
     }
 
     # Instantiate a SVC classifier
     svm_classifier = SVC(random_state=42)
 
-    # Set up the cross-validation scheme
-    stratified_kfold = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=42)
+    # Set up a simpler cross-validation scheme
+    cv = StratifiedKFold(n_splits=3)  # Reduced from 10 splits to 3
 
     # Set up the RandomizedSearchCV object
     randomized_search = RandomizedSearchCV(
         estimator=svm_classifier,
         param_distributions=param_dist,
-        n_iter=10,
-        cv=stratified_kfold,
+        n_iter=5,  # Reduced from 10 to 5 iterations
+        cv=cv,
         scoring='recall',
         n_jobs=-1,
         random_state=42,
