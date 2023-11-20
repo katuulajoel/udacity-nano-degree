@@ -4,8 +4,6 @@
 .gitconfig/
 .ipynb_checkpoints//
 .ipynb_checkpoints/
-..ipython//
-.ipython//
 .autovizwidget/
 .jupyter/
 .local/
@@ -15,3 +13,5 @@
 .gitconfig
 local_file.csv
 *.csv
+myvenv/
+opt/
