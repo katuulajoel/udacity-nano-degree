@@ -1,5 +1,6 @@
 # evaluate_model_metrics.py
-
+import subprocess
+import sys
 import argparse
 import json
 import os
@@ -7,6 +8,7 @@ import tarfile
 import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import joblib
+subprocess.check_call([sys.executable, "-m", "pip", "install", "xgboost"])
 
 def evaluate_model(model, X_test, y_test):
     # Make predictions

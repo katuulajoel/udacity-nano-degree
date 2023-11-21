@@ -76,20 +76,32 @@ There are three Lambda functions involved in this project:
       "Value": "1"
     },
     {
+      "Name": "MaxDepth",
+      "Value": "7"
+    },
+    {
+      "Name": "LearningRate",
+      "Value": "0.16466967895118775"
+    },
+    {
       "Name": "NEstimators",
-      "Value": "100"
+      "Value": "119"
     },
     {
-      "Name": "MinSamplesSplit",
-      "Value": "2"
+      "Name": "MinChildWeight",
+      "Value": "6"
     },
     {
-      "Name": "MinSamplesLeaf",
-      "Value": "1"
+      "Name": "Subsample",
+      "Value": "0.9758503388962246"
     },
     {
-      "Name": "MinF1ScoreValue",
-      "Value": "0.8"
+      "Name": "ColsampleByTree",
+      "Value": "0.5146998846523689"
+    },
+    {
+      "Name": "MinRecallValue",
+      "Value": "0.99"
     },
     {
       "Name": "ModelApprovalStatus",
