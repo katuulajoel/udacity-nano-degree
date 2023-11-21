@@ -144,6 +144,8 @@ There are three Lambda functions involved in this project:
 
 To trigger the pipeline, deploy the model, and send inference requests, you can use the corresponding Lambda functions. Ensure to pass the event objects with the correct parameters.
 
+![Feature store](screenshots/feature-stores.png)
+
 ## Authors
 
 * **Katuula Joel**
