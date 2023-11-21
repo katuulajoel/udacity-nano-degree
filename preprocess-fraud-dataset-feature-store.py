@@ -136,141 +136,125 @@ def cast_object_to_string(data_frame):
 def main():
     args = parse_arguments()
     
-    # feature_group = create_or_load_feature_group(args.feature_store_offline_prefix, args.feature_group_name)
+    feature_group = create_or_load_feature_group(args.feature_store_offline_prefix, args.feature_group_name)
 
-    print(os.listdir('/opt/ml/processing/input/data'))
+    df = pd.read_csv('/opt/ml/processing/input/data/online_fraud_dataset.csv')
 
-    try:
-        # pass file name online_fraud_dataset in args
-        df = pd.read_csv('/opt/ml/processing/input/data/online_fraud_dataset.csv')
-        print("Dataframe Shape:", df.shape)
-    except Exception as e:
-        print("Error loading data:", e)
+    # Preprocessing steps
+    df['type'] = df['type'].replace(['CASH_IN', 'PAYMENT', 'DEBIT'], 'OTHER')
+    df.replace(to_replace=['TRANSFER', 'CASH_OUT', 'OTHER'], value=[1, 2, 3], inplace=True)
+    df = df[df['type'] != 3]
+    df['step'] = df['step'] / 24
+    df['step'] = df['step'].round().astype(int)
+    df['day'] = df['step'] % 7
+    day_mapping = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'}
+    df['day'] = df['day'].map(day_mapping)
 
+    custom_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    ordinal_encoder = OrdinalEncoder(categories=[custom_order])
+    df['day'] = ordinal_encoder.fit_transform(df[['day']])
 
-    try:
-        log_resource_usage()
-        # Preprocessing steps
-        df['type'] = df['type'].replace(['CASH_IN', 'PAYMENT', 'DEBIT'], 'OTHER')
-        df.replace(to_replace=['TRANSFER', 'CASH_OUT', 'OTHER'], value=[1, 2, 3], inplace=True)
-        df = df[df['type'] != 3]
-        df['step'] = df['step'] / 24
-        df['step'] = df['step'].round().astype(int)
-        df['day'] = df['step'] % 7
-        day_mapping = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday', 3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'}
-        df['day'] = df['day'].map(day_mapping)
+    cols_to_drop = ['nameOrig', 'nameDest', 'step', 'oldbalanceDest', 'newbalanceOrig', 'newbalanceDest', 'isFlaggedFraud']
+    df.drop(cols_to_drop, axis=1, inplace=True)
 
-        custom_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        ordinal_encoder = OrdinalEncoder(categories=[custom_order])
-        df['day'] = ordinal_encoder.fit_transform(df[['day']])
+    df['isFraud'] = df['isFraud'].astype(int)
 
-        cols_to_drop = ['nameOrig', 'nameDest', 'step', 'oldbalanceDest', 'newbalanceOrig', 'newbalanceDest', 'isFlaggedFraud']
-        df.drop(cols_to_drop, axis=1, inplace=True)
-
-        df['isFraud'] = df['isFraud'].astype(int)
-
-        smt = SMOTETomek(random_state=2)
-        X = df.drop('isFraud', axis=1)
-        y = df['isFraud']
-        X, y = smt.fit_resample(X, y)
-        print("Data preprocessed.")
-        log_resource_usage()
-    except Exception as e:
-        print("Error during preprocessing:", e)
+    smt = SMOTETomek(random_state=2)
+    X = df.drop('isFraud', axis=1)
+    y = df['isFraud']
+    X, y = smt.fit_resample(X, y)
+    print("Data preprocessed.")
 
 
-    try:
-        log_resource_usage()
-        # Data splitting steps
-        X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=(args.validation_split_percentage + args.test_split_percentage), random_state=42)
-        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(args.test_split_percentage / (args.validation_split_percentage + args.test_split_percentage)), random_state=42)
+    # Data splitting steps
+    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=(args.validation_split_percentage + args.test_split_percentage), random_state=42)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(args.test_split_percentage / (args.validation_split_percentage + args.test_split_percentage)), random_state=42)
 
-        scaler = RobustScaler()
-        scaled_columns = scaler.fit_transform(X_train[['amount', 'oldbalanceOrg']])
-        X_train_scaled = X_train.copy()
-        X_train_scaled[['amount', 'oldbalanceOrg']] = scaled_columns
+    scaler = RobustScaler()
+    scaled_columns = scaler.fit_transform(X_train[['amount', 'oldbalanceOrg']])
+    X_train_scaled = X_train.copy()
+    X_train_scaled[['amount', 'oldbalanceOrg']] = scaled_columns
 
-        scaled_columns_validation = scaler.transform(X_val[['amount', 'oldbalanceOrg']])
-        X_val_scaled = X_val.copy()
-        X_val_scaled[['amount', 'oldbalanceOrg']] = scaled_columns_validation
-        
-        scaled_columns_test = scaler.transform(X_test[['amount', 'oldbalanceOrg']])
-        X_test_scaled = X_test.copy()
-        X_test_scaled[['amount', 'oldbalanceOrg']] = scaled_columns_test
+    scaled_columns_validation = scaler.transform(X_val[['amount', 'oldbalanceOrg']])
+    X_val_scaled = X_val.copy()
+    X_val_scaled[['amount', 'oldbalanceOrg']] = scaled_columns_validation
+    
+    scaled_columns_test = scaler.transform(X_test[['amount', 'oldbalanceOrg']])
+    X_test_scaled = X_test.copy()
+    X_test_scaled[['amount', 'oldbalanceOrg']] = scaled_columns_test
 
-        # Adding 'record_id' and 'event_time' to the dataframes
-        df_train_records = pd.concat([X_train_scaled, y_train.reset_index(drop=True)], axis=1)
-        df_train_records['record_id'] = df_train_records.index
-        df_train_records['event_time'] = pd.to_datetime('now').strftime('%Y-%m-%d %H:%M:%S')
+    # Adding 'record_id' and 'event_time' to the dataframes
+    df_train_records = pd.concat([X_train_scaled, y_train.reset_index(drop=True)], axis=1)
+    df_train_records['record_id'] = df_train_records.index
+    df_train_records['event_time'] = pd.to_datetime('now').strftime('%Y-%m-%d %H:%M:%S')
 
-        df_validation_records = pd.concat([X_val_scaled, y_val.reset_index(drop=True)], axis=1)
-        df_validation_records['record_id'] = df_validation_records.index
-        df_validation_records['event_time'] = pd.to_datetime('now').strftime('%Y-%m-%d %H:%M:%S')
+    df_validation_records = pd.concat([X_val_scaled, y_val.reset_index(drop=True)], axis=1)
+    df_validation_records['record_id'] = df_validation_records.index
+    df_validation_records['event_time'] = pd.to_datetime('now').strftime('%Y-%m-%d %H:%M:%S')
 
-        df_test_records = pd.concat([X_test_scaled, y_test.reset_index(drop=True)], axis=1)
-        df_test_records['record_id'] = df_test_records.index
-        df_test_records['event_time'] = pd.to_datetime('now').strftime('%Y-%m-%d %H:%M:%S')
+    df_test_records = pd.concat([X_test_scaled, y_test.reset_index(drop=True)], axis=1)
+    df_test_records['record_id'] = df_test_records.index
+    df_test_records['event_time'] = pd.to_datetime('now').strftime('%Y-%m-%d %H:%M:%S')
 
-        print("Train records: {}".format(df_train_records.shape))
-        print("Train columns: {}".format(df_train_records.columns))
-        print("Train column types: \n{}".format(df_train_records.dtypes))
-        print("Data split into train, validation, and test sets.")
-        log_resource_usage()
-    except Exception as e:
-        print("Error during data splitting:", e)
+    print("Train records: {}".format(df_train_records.shape))
+    print("Train columns: {}".format(df_train_records.columns))
+    print("Train column types: \n{}".format(df_train_records.dtypes))
+    print("Data split into train, validation, and test sets.")
 
 
-    try:
-        log_resource_usage()
-        # Data saving steps
-        train_features_output_path = os.path.join("opt/ml/processing/output/fraud/train", "train_features.csv")
-        train_labels_output_path = os.path.join("opt/ml/processing/output/fraud/train", "train_labels.csv")
-        
-        validation_features_output_path = os.path.join("opt/ml/processing/output/fraud/validation", "validation_features.csv")
-        validation_labels_output_path = os.path.join("opt/ml/processing/output/fraud/validation", "validation_labels.csv")
+    # Data saving steps
+    train_features_output_path = os.path.join("opt/ml/processing/output/fraud/train", "train_features.csv")
+    train_labels_output_path = os.path.join("opt/ml/processing/output/fraud/train", "train_labels.csv")
+    
+    validation_features_output_path = os.path.join("opt/ml/processing/output/fraud/validation", "validation_features.csv")
+    validation_labels_output_path = os.path.join("opt/ml/processing/output/fraud/validation", "validation_labels.csv")
 
-        test_features_output_path = os.path.join("opt/ml/processing/output/fraud/test", "test_features.csv")
-        test_labels_output_path = os.path.join("opt/ml/processing/output/fraud/test", "test_labels.csv")
-        
-        print("Saving training features to {}".format(train_features_output_path))
-        pd.DataFrame(X_train_scaled).to_csv(train_features_output_path, index=False)
-        
-        print("Saving validation features to {}".format(validation_features_output_path))
-        pd.DataFrame(X_val_scaled).to_csv(validation_features_output_path, index=False)
+    test_features_output_path = os.path.join("opt/ml/processing/output/fraud/test", "test_features.csv")
+    test_labels_output_path = os.path.join("opt/ml/processing/output/fraud/test", "test_labels.csv")
+    
+    print("Saving training features to {}".format(train_features_output_path))
+    pd.DataFrame(X_train_scaled).to_csv(train_features_output_path, index=False)
+    
+    print("Saving validation features to {}".format(validation_features_output_path))
+    pd.DataFrame(X_val_scaled).to_csv(validation_features_output_path, index=False)
 
-        print("Saving test features to {}".format(test_features_output_path))
-        pd.DataFrame(X_test_scaled).to_csv(test_features_output_path, index=False)
+    print("Saving test features to {}".format(test_features_output_path))
+    pd.DataFrame(X_test_scaled).to_csv(test_features_output_path, index=False)
 
-        print("Saving training labels to {}".format(train_labels_output_path))
-        y_train.to_csv(train_labels_output_path, index=False)
-        
-        print("Saving validation labels to {}".format(validation_labels_output_path))
-        y_val.to_csv(validation_labels_output_path, index=False)
+    print("Saving training labels to {}".format(train_labels_output_path))
+    y_train.to_csv(train_labels_output_path, index=False)
+    
+    print("Saving validation labels to {}".format(validation_labels_output_path))
+    y_val.to_csv(validation_labels_output_path, index=False)
 
-        print("Saving test labels to {}".format(test_labels_output_path))
-        y_test.to_csv(test_labels_output_path, index=False)
-        print("Data saved to CSV files.")
-        log_resource_usage()
-    except Exception as e:
-        print("Error during data saving:", e)
+    print("Saving test labels to {}".format(test_labels_output_path))
+    y_test.to_csv(test_labels_output_path, index=False)
+    print("Data saved to CSV files.")
     
     #Save the processed data to the specified feature store
     #(Add your feature store saving logic here)
     
-    """# Add record to feature store
+    # Add record to feature store
     df_fs_train_records = cast_object_to_string(df_train_records)
     df_fs_validation_records = cast_object_to_string(df_validation_records)
     df_fs_test_records = cast_object_to_string(df_test_records)
 
-     print("Ingesting features...")
+    
+    # TODO: Ingesting data into the feature store can take a long time, especially for large datasets.
+    # Therefore, the ingestion code is commented out for now to speed up the execution of this script.
+    """ 
+    print("Ingesting features...")
+
     feature_group.ingest(data_frame=df_fs_train_records, max_workers=3, wait=True)
     feature_group.ingest(data_frame=df_fs_validation_records, max_workers=3, wait=True)
     feature_group.ingest(data_frame=df_fs_test_records, max_workers=3, wait=True)
 
-    print('...features ingested!') """
+    print('...features ingested!') 
     
-    # Check if feature group is created
-    """ feature_group_status = None
+    """
+    
+    """ # Check if feature group is created
+    feature_group_status = None
     try:
         response = feature_group.describe()
         feature_group_status = response.get('FeatureGroupStatus')
@@ -282,10 +266,10 @@ def main():
         print('Feature group is successfully created.')
     else:
         print('Feature group creation is not complete or there was an error.')
-        return  # or handle this situation as needed """
+        return  # or handle this situation as needed
     
     
-    """ offline_store_contents = None
+    offline_store_contents = None
     while offline_store_contents is None:
         objects_in_bucket = s3.list_objects(Bucket=bucket, Prefix=args.feature_store_offline_prefix)
         if "Contents" in objects_in_bucket and len(objects_in_bucket["Contents"]) > 1:

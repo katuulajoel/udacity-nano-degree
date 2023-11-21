@@ -1,9 +1,14 @@
+import subprocess
+import sys
 import argparse
 import joblib
 import os
 import logging
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+
+subprocess.check_call([sys.executable, "-m", "pip", "install", "xgboost"])
+
+from xgboost import XGBClassifier
 from sklearn.metrics import classification_report
 from sklearn.metrics import f1_score, precision_score, recall_score
 
@@ -16,9 +21,10 @@ if __name__ == '__main__':
     # Define arguments
     parser.add_argument('--n_estimators', type=int, default=100, help='Number of trees in the forest')
     parser.add_argument('--max_depth', type=int, default=None, help='Maximum depth of the tree')
-    parser.add_argument('--min_samples_split', type=int, default=2, help='Minimum number of samples required to split an internal node')
-    parser.add_argument('--min_samples_leaf', type=int, default=1, help='Minimum number of samples required to be at a leaf node')
-    parser.add_argument('--criterion', type=str, default='gini', help='Function to measure the quality of a split')
+    parser.add_argument('--learning_rate', type=float, default=0.1, help='Boosting learning rate')
+    parser.add_argument('--min_child_weight', type=int, default=1, help='Minimum sum of instance weight needed in a child')
+    parser.add_argument('--subsample', type=float, default=1, help='Subsample ratio of the training instances')
+    parser.add_argument('--colsample_bytree', type=float, default=1, help='Subsample ratio of columns when constructing each tree')
 
     # Parse arguments
     args = parser.parse_args()
@@ -35,26 +41,27 @@ if __name__ == '__main__':
     X_test = pd.read_csv('/opt/ml/input/data/test/test_features.csv')
     y_test = pd.read_csv('/opt/ml/input/data/test/test_labels.csv').values.ravel()
 
-    # Instantiate a RandomForestClassifier
-    rf_classifier = RandomForestClassifier(
+    # Instantiate a XGBClassifier
+    xgb_classifier = XGBClassifier(
         n_estimators=args.n_estimators,
         max_depth=args.max_depth,
-        min_samples_split=args.min_samples_split,
-        min_samples_leaf=args.min_samples_leaf,
-        criterion=args.criterion,
+        learning_rate=args.learning_rate,
+        min_child_weight=args.min_child_weight,
+        subsample=args.subsample,
+        colsample_bytree=args.colsample_bytree,
         random_state=42
     )
 
-    # Fit the RandomForestClassifier to the data
-    rf_classifier.fit(X_train, y_train)
+    # Fit the XGBClassifier to the data
+    xgb_classifier.fit(X_train, y_train)
 
     # Save the model to the specified directory
     if not os.path.exists('/opt/ml/model'):
         os.makedirs('/opt/ml/model')
-    joblib.dump(rf_classifier, '/opt/ml/model/model.joblib')
+    joblib.dump(xgb_classifier, '/opt/ml/model/model.joblib')
 
     # Predict the labels for the test set
-    y_pred = rf_classifier.predict(X_test)
+    y_pred = xgb_classifier.predict(X_test)
 
     # Generate and print the classification report
     report = classification_report(y_test, y_pred)
