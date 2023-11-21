@@ -2,7 +2,6 @@
 .cache/
 .config/
 .gitconfig/
-.ipynb_checkpoints//
 .ipynb_checkpoints/
 .autovizwidget/
 .jupyter/
@@ -15,3 +14,5 @@ local_file.csv
 *.csv
 myvenv/
 opt/
+playground/
+settings.json
