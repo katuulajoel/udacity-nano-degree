@@ -154,4 +154,3 @@ To trigger the pipeline, deploy the model, and send inference requests, you can 
 
 * Kaggle for providing the dataset.
 * AWS for the MLOps services.
-```
